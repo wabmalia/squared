@@ -12,7 +12,7 @@
     startTime: 30,          // seconds on the clock at the start
     missPenalty: 5,         // seconds lost on a miss
     timeBonusPerMult: 0.5,  // seconds gained per landing = multiplier * this (from x2 up)
-    comboWindow: 1.0,       // seconds you have to START pressing after a new square appears to keep the chain
+    comboWindow: 1.0,       // seconds after a landing to START pressing the next square and keep the chain
 
     points: { land: 10, perfect: 50 },
     perfectLeeway: 7,       // square within this many units under the top gap = perfect
@@ -141,7 +141,7 @@
   let best = storage.get('squared.best', 0);
 
   let time = 0, score = 0, combo = 0, landings = 0, misses = 0, perfects = 0, maxCombo = 0;
-  let roundReadyAt = 0, resultT = 0, lastOutcome = null;
+  let landedAt = 0, resultT = 0, lastOutcome = null;
   let armed = true, armAt = 0, newBest = false; // armed: a press now starts a game (menu/over)
   let sq = null;
   let plat = { top: 200, bottom: 120, fromTop: 200, fromBottom: 120, topTarget: 200, bottomTarget: 120, anim: 1 };
@@ -174,7 +174,6 @@
   function newSquare() {
     sq = makeSquare();
     state = 'ready';
-    roundReadyAt = clock;
   }
 
   // The game starts on the same screen: the square and platforms are already
@@ -190,7 +189,6 @@
     popups = [];
     newBest = false;
     state = 'ready';
-    roundReadyAt = clock;
   }
 
   function gameOver() {
@@ -220,6 +218,7 @@
 
     if (kind === 'land') {
       sq.squash = 1;
+      landedAt = clock;
       landings++;
       combo++; // combo is still > 0 only if this square was pressed within the window
       maxCombo = Math.max(maxCombo, combo);
@@ -356,10 +355,11 @@
       return;
     }
 
+    // The chain breaks if the next press doesn't start within the window
+    // after a landing (the pause after the landing counts).
+    if ((state === 'ready' || state === 'result') && combo > 0 && clock - landedAt > CONFIG.comboWindow) combo = 0;
+
     switch (state) {
-      case 'ready':
-        if (combo > 0 && clock - roundReadyAt > CONFIG.comboWindow) combo = 0;
-        break;
 
       case 'growing': {
         const speed = SQ.growSpeed * (1 + SQ.growBoostPerMult * (multiplier() - 1));
@@ -541,8 +541,8 @@
       }
 
       // Chain window: drains while waiting for the next press.
-      if (state === 'ready' && combo >= 1) {
-        const left = clamp(1 - (clock - roundReadyAt) / CONFIG.comboWindow, 0, 1);
+      if ((state === 'ready' || state === 'result') && combo >= 1) {
+        const left = clamp(1 - (clock - landedAt) / CONFIG.comboWindow, 0, 1);
         ctx.fillStyle = rgb(colors.accent, 0.25);
         roundRect(cx - 30, 108, 60, 4, 2);
         ctx.fill();
