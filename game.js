@@ -21,7 +21,7 @@
       y: 640 / 3,           // center of the square, 1/3 from the top
       startSize: 16,
       maxSize: 330,         // pulses back down after reaching this
-      growSpeed: 187.5,     // units per second at x1
+      growSpeed: 225,       // units per second at x1
       growBoostPerMult: 0.08, // +8% growth speed per multiplier step
     },
 
