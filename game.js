@@ -15,14 +15,17 @@
     comboWindow: 1.0,       // seconds after a landing to START pressing the next square and keep the chain
 
     points: { land: 10, perfect: 50 },
-    perfectLeeway: 7,       // square within this many units under the top gap = perfect
+    perfectWindow: 0.035,   // seconds (at x1) the square spends in the "perfect" band just under the top gap
 
     square: {
       y: 640 / 3,           // center of the square, 1/3 from the top
       startSize: 16,
       maxSize: 330,         // pulses back down after reaching this
-      growSpeed: 225,       // units per second at x1
-      growBoostPerMult: 0.08, // +8% growth speed per multiplier step
+      // Growth is proportional: the size is multiplied by e^growRate every
+      // second, so it starts slow and speeds up as it gets bigger. 3.22 takes
+      // ~0.45s to reach a 70 gap and ~0.9s to reach a 290 gap.
+      growRate: 3.22,
+      growBoostPerMult: 0.08, // +8% growth rate per multiplier step
     },
 
     platforms: {
@@ -31,8 +34,11 @@
       minTopGap: 70,
       maxTopGap: 290,
       minBottomGap: 28,
-      startDiff: 80,        // top gap minus bottom gap at the start (the "safe" window)
-      endDiff: 18,          // ...and at full difficulty
+      // Seconds (at x1) the square spends between the bottom and top gap sizes,
+      // i.e. how much reaction time a round gives. Because growth is
+      // proportional, this is the same for big and small gaps.
+      startWindow: 0.35,
+      endWindow: 0.08,      // ...at full difficulty
       rampLandings: 40,     // landings needed to reach full difficulty
       minChange: 35,        // new top gap differs from the previous one by at least this
       animTime: 0.28,
@@ -154,8 +160,8 @@
   }
 
   function rollPlatforms(level = difficulty()) {
-    const diff = lerp(PL.startDiff, PL.endDiff, level);
-    const lo = Math.max(PL.minTopGap, PL.minBottomGap + diff);
+    const ratio = Math.exp(lerp(PL.startWindow, PL.endWindow, level) * SQ.growRate);
+    const lo = Math.max(PL.minTopGap, PL.minBottomGap * ratio);
     let top, tries = 0;
     do {
       top = rand(lo, PL.maxTopGap);
@@ -163,7 +169,7 @@
     plat.fromTop = plat.top;
     plat.fromBottom = plat.bottom;
     plat.topTarget = top;
-    plat.bottomTarget = top - diff;
+    plat.bottomTarget = top / ratio;
     plat.anim = 0;
   }
 
@@ -223,7 +229,7 @@
       combo++; // combo is still > 0 only if this square was pressed within the window
       maxCombo = Math.max(maxCombo, combo);
       const mult = combo;
-      const perfect = plat.topTarget - sq.size <= CONFIG.perfectLeeway;
+      const perfect = sq.size >= plat.topTarget * Math.exp(-CONFIG.perfectWindow * SQ.growRate);
       const pts = (perfect ? CONFIG.points.perfect : CONFIG.points.land) * mult;
       score += pts;
       const y = sq.y - sq.size / 2 - 18;
@@ -352,13 +358,14 @@
     switch (state) {
 
       case 'growing': {
-        const speed = SQ.growSpeed * (1 + SQ.growBoostPerMult * (multiplier() - 1));
-        sq.size += sq.dir * speed * dt;
+        const rate = SQ.growRate * (1 + SQ.growBoostPerMult * (multiplier() - 1));
+        sq.size *= Math.exp(sq.dir * rate * dt);
+        // Bounce off the limits (mirrored in log space, matching the growth).
         if (sq.size >= SQ.maxSize) {
-          sq.size = SQ.maxSize - (sq.size - SQ.maxSize);
+          sq.size = SQ.maxSize * SQ.maxSize / sq.size;
           sq.dir = -1;
         } else if (sq.size <= SQ.startSize) {
-          sq.size = SQ.startSize + (SQ.startSize - sq.size);
+          sq.size = SQ.startSize * SQ.startSize / sq.size;
           sq.dir = 1;
         }
         break;
