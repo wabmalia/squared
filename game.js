@@ -22,11 +22,11 @@
       startSize: 16,
       maxSize: 330,         // pulses back down after reaching this
       // Growth speed (units/s) = growBase + growRate * size, so the square
-      // speeds up as it gets bigger (~170 u/s at the start, ~565 u/s at a 290
-      // gap). Takes ~0.26s to reach a 70 gap and ~0.84s to reach a 290 gap.
-      growBase: 145,
-      growRate: 1.45,
-      growBoostPerMult: 0.08, // +8% growth rate per multiplier step
+      // speeds up as it gets bigger (~170 u/s at the start, ~470 u/s at a 290
+      // gap). Takes ~0.28s to reach a 70 gap and ~0.94s to reach a 290 gap.
+      growBase: 150,
+      growRate: 1.1,
+      growBoostPerMult: 0.05, // +5% growth rate per multiplier step
     },
 
     platforms: {
