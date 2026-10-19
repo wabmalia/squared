@@ -88,7 +88,28 @@
   const smooth = t => t * t * (3 - 2 * t);
   const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
   const mixRgb = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
-  const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+  // Seeded random numbers, so a seed (the date, in daily mode) always gives the
+  // same sequence of platforms.
+  function seededRandom(seed) {
+    let h = 1779033703 ^ seed.length; // string hash -> 32-bit state
+    for (let i = 0; i < seed.length; i++) {
+      h = Math.imul(h ^ seed.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    let a = h >>> 0;
+    return () => { // mulberry32
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  let rng = Math.random;
+  const rand = (lo, hi) => lo + rng() * (hi - lo);
+  // The daily challenge follows the UTC date, so it's the same puzzle worldwide.
+  const today = () => new Date().toISOString().slice(0, 10);
+  const prettyDay = day => new Date(day + 'T00:00:00Z')
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' }).toLowerCase();
   const fmtSec = s => (Number.isInteger(s) ? String(s) : s.toFixed(1));
 
   function roundRect(x, y, w, h, r) {
@@ -150,7 +171,10 @@
 
   let state = 'menu'; // menu | ready | growing | falling | result | over
   let clock = 0;      // seconds since page load, drives colors and animations
-  let best = storage.get('squared.best', 0);
+  let mode = storage.get('squared.mode', 'daily') === 'random' ? 'random' : 'daily';
+  let runDay = today(); // the day the current/next daily run belongs to
+  const bestKey = () => (mode === 'daily' ? `squared.daily.${runDay}` : 'squared.best');
+  let best = 0;
 
   let time = 0, score = 0, combo = 0, landings = 0, misses = 0, perfects = 0, maxCombo = 0;
   let landedAt = 0, resultT = 0, lastOutcome = null;
@@ -163,6 +187,24 @@
 
   function difficulty() {
     return clamp(landings / PL.rampLandings, 0, 1);
+  }
+
+  // Sets up the platform sequence for the next game in the current mode and
+  // shows its first platforms.
+  function prepareRun() {
+    runDay = today();
+    rng = mode === 'daily' ? seededRandom(`squared-${runDay}`) : Math.random;
+    best = storage.get(bestKey(), 0);
+    plat.topTarget = -Infinity; // so the first roll doesn't depend on the previous game
+    rollPlatforms(0);
+  }
+
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m;
+    storage.set('squared.mode', mode);
+    newBest = false;
+    prepareRun();
   }
 
   function rollPlatforms(level = difficulty()) {
@@ -192,6 +234,7 @@
   // The game starts on the same screen: the square and platforms are already
   // there, so the press that starts the game also starts growing the square.
   function startGame() {
+    if (mode === 'daily' && runDay !== today()) prepareRun(); // a new day started while on this screen
     time = CONFIG.startTime;
     score = 0;
     combo = 0;
@@ -209,11 +252,13 @@
     newBest = score > best;
     if (newBest) {
       best = score;
-      storage.set('squared.best', best);
+      storage.set(bestKey(), best);
     }
     armed = false;
     armAt = clock + 0.8; // a beat before a new game can start, so a late press doesn't restart by accident
-    rollPlatforms(0);
+    const shownBest = best;
+    prepareRun();
+    best = shownBest;
   }
 
   function multiplier() {
@@ -249,7 +294,7 @@
       if (mult >= 2) {
         const bonus = mult * CONFIG.timeBonusPerMult;
         time += bonus;
-        popup(`+${fmtSec(bonus)}s`, W / 2, 140, 'accent', 18);
+        popup(`+${fmtSec(bonus)}s`, W / 2, 156, 'accent', 18);
       }
     } else {
       misses++;
@@ -286,13 +331,34 @@
     sq.vy = 0;
   }
 
-  canvas.addEventListener('pointerdown', e => { e.preventDefault(); press(); });
+  // Daily / random toggle, shown on the start and game over screens.
+  const TOGGLE = { y: 146, w: 200, h: 34 };
+  const toggleVisible = () => state === 'menu' || (state === 'over' && armed);
+
+  function toggleHit(clientX, clientY) {
+    const x = (clientX - offX) / scale;
+    const y = (clientY - offY) / scale;
+    if (y < TOGGLE.y - 8 || y > TOGGLE.y + TOGGLE.h + 8) return null;
+    if (x < W / 2 - TOGGLE.w / 2 || x > W / 2 + TOGGLE.w / 2) return null;
+    return x < W / 2 ? 'daily' : 'random';
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const hit = toggleVisible() && toggleHit(e.clientX, e.clientY);
+    if (hit) setMode(hit);
+    else press();
+  });
   window.addEventListener('pointerup', release);
   window.addEventListener('pointercancel', release);
   window.addEventListener('blur', release);
   window.addEventListener('contextmenu', e => e.preventDefault());
 
   window.addEventListener('keydown', e => {
+    if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && toggleVisible()) {
+      setMode(e.code === 'ArrowLeft' ? 'daily' : 'random');
+      return;
+    }
     if (e.code !== 'Space') return;
     e.preventDefault();
     if (e.repeat) return;
@@ -505,6 +571,23 @@
     ctx.fillText(str, x, y);
   }
 
+  function drawToggle() {
+    const x0 = W / 2 - TOGGLE.w / 2;
+    const half = TOGGLE.w / 2;
+    const { y, h } = TOGGLE;
+    ctx.fillStyle = rgb(colors.fg, 0.08);
+    roundRect(x0, y, TOGGLE.w, h, h / 2);
+    ctx.fill();
+    ctx.fillStyle = rgb(colors.fg);
+    roundRect(mode === 'daily' ? x0 + 3 : x0 + half + 3, y + 3, half - 6, h - 6, (h - 6) / 2);
+    ctx.fill();
+    ctx.textBaseline = 'middle';
+    text(mode === 'daily' ? `daily · ${prettyDay(runDay)}` : 'daily', x0 + half / 2, y + h / 2 + 1, 13,
+      mode === 'daily' ? colors.bg : colors.fg, mode === 'daily' ? 1 : 0.6, 700);
+    text('random', x0 + half * 1.5, y + h / 2 + 1, 13, mode === 'random' ? colors.bg : colors.fg, mode === 'random' ? 1 : 0.6, 700);
+    ctx.textBaseline = 'alphabetic';
+  }
+
   function drawHud() {
     // Timer bar across the top of the screen. Full before the first game.
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -529,14 +612,16 @@
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
 
+    const bestLabel = mode === 'daily' ? `today's best ${best}` : `best ${best}`;
     if (state === 'menu') {
       text('squared', cx, 70, 40, colors.fg);
-      if (best > 0) text(`best ${best}`, cx, 96, 16, colors.fg, 0.6, 700);
+      if (best > 0) text(bestLabel, cx, 96, 16, colors.fg, 0.6, 700);
     } else {
+      if (mode === 'daily' && state !== 'over') text(`daily · ${prettyDay(runDay)}`, cx, 30, 12, colors.fg, 0.45, 700);
       text(String(score), cx, 70, 44, colors.fg);
       if (state === 'over') {
-        if (newBest) text('new best!', cx, 96, 16, colors.accent, 1, 700);
-        else text(`best ${best}`, cx, 96, 16, colors.fg, 0.6, 700);
+        if (newBest) text(mode === 'daily' ? "new best today!" : 'new best!', cx, 96, 16, colors.accent, 1, 700);
+        else text(bestLabel, cx, 96, 16, colors.fg, 0.6, 700);
         text(`${landings} squares · ${perfects} perfect · best chain x${Math.max(1, maxCombo)}`,
           cx, 118, 13, colors.fg, 0.5, 600);
       } else if (combo >= 2) {
@@ -554,6 +639,8 @@
         ctx.fill();
       }
     }
+
+    if (toggleVisible()) drawToggle();
 
     let hint = null;
     if (state === 'menu' || (state === 'ready' && landings === 0 && misses === 0)) {
@@ -596,7 +683,7 @@
     requestAnimationFrame(frame);
   }
 
-  rollPlatforms();
+  prepareRun();
   sq = makeSquare();
   requestAnimationFrame(frame);
 })();

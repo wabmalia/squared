@@ -14,6 +14,8 @@ Plain HTML/CSS/JS, no build step. Open `index.html` in a browser to play.
   the chain. Each chained landing raises the multiplier (x2, x3, ...), which
   multiplies points, adds `multiplier / 2` seconds and makes the square grow a
   bit faster.
+- Daily mode uses the UTC date as the seed, so everyone gets the same platform
+  sequence that day (best score kept per day). Random mode reseeds every game.
 - New platforms are rolled after every landing. The gap between the top and
   bottom holes narrows as you land more squares.
 
