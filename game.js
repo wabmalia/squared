@@ -28,7 +28,6 @@
     platforms: {
       topY: 430,
       bottomY: 520,
-      thickness: 16,
       minTopGap: 70,
       maxTopGap: 290,
       minBottomGap: 28,
@@ -427,21 +426,49 @@
     ctx.setTransform(s, 0, 0, s, dpr * offX + sx * s, dpr * offY + sy * s);
   }
 
-  function drawPlatform(y, gap) {
-    // Platforms run to the screen edges; only the centered gap matters for play.
+  // Rectangle with only the top corners rounded.
+  function topRoundRect(x, y, w, h, r) {
+    if (w <= 0) return;
+    r = Math.min(r, w / 2, h);
+    ctx.beginPath();
+    ctx.moveTo(x, y + h);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The top platform is two solid walls with the wide gap between them; the
+  // bottom platform is a ledge on each side inside that gap, leaving the narrow
+  // hole as a shaft. Both run to the screen edges and the bottom of the screen;
+  // only the centered gaps matter for play.
+  function drawPlatforms() {
     const left = -offX / scale - 10;
     const right = W + offX / scale + 10;
+    const floor = (ch - offY) / scale + 10;
     const cx = W / 2;
-    const t = PL.thickness;
+    const top = plat.top / 2;
+    const bottom = Math.min(plat.bottom, plat.top) / 2;
+    const r = 6;
+
+    ctx.fillStyle = rgb(mixRgb(colors.platform, colors.square, 0.12));
+    topRoundRect(cx - top, PL.bottomY, top - bottom, floor - PL.bottomY, r);
+    topRoundRect(cx + bottom, PL.bottomY, top - bottom, floor - PL.bottomY, r);
+
     ctx.fillStyle = rgb(colors.platform);
-    roundRect(left, y, cx - gap / 2 - left, t, 5);
-    ctx.fill();
-    roundRect(cx + gap / 2, y, right - (cx + gap / 2), t, 5);
-    ctx.fill();
-    // subtle top highlight
-    ctx.fillStyle = rgb([255, 255, 255], 0.18);
-    ctx.fillRect(left, y, cx - gap / 2 - left - 5, 2);
-    ctx.fillRect(cx + gap / 2 + 5, y, right - (cx + gap / 2), 2);
+    topRoundRect(left, PL.topY, cx - top - left, floor - PL.topY, r);
+    topRoundRect(cx + top, PL.topY, right - cx - top, floor - PL.topY, r);
+
+    // light catching the top edges
+    ctx.fillStyle = rgb([255, 255, 255], 0.2);
+    ctx.fillRect(left, PL.topY, cx - top - left - r, 2);
+    ctx.fillRect(cx + top + r, PL.topY, right - cx - top - r, 2);
+    if (top - bottom > 2 * r) {
+      ctx.fillRect(cx - top + r, PL.bottomY, top - bottom - 2 * r, 2);
+      ctx.fillRect(cx + bottom + r, PL.bottomY, top - bottom - 2 * r, 2);
+    }
   }
 
   function drawSquare() {
@@ -527,8 +554,7 @@
   function render() {
     drawBackground();
     toWorld();
-    drawPlatform(PL.topY, plat.top);
-    drawPlatform(PL.bottomY, plat.bottom);
+    drawPlatforms();
     drawSquare();
     if (flash > 0) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
