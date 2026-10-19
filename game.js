@@ -482,14 +482,14 @@
 
   function drawSquare() {
     if (!sq) return;
-    const s = sq.size * easeOut(sq.appear);
+    const s = sq.size; // always the real size, so growth on screen is exactly the speed curve
     const sx = 1 + 0.14 * sq.squash;
     const sy = 1 - 0.2 * sq.squash;
     const w = s * sx;
     const h = s * sy;
     const bottom = sq.y + s / 2;
     ctx.save();
-    ctx.globalAlpha = sq.alpha;
+    ctx.globalAlpha = sq.alpha * easeOut(sq.appear); // new squares fade in
     ctx.shadowColor = rgb(colors.square, 0.25);
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 6;
