@@ -150,7 +150,7 @@
   let clock = 0;      // seconds since page load, drives colors and animations
   let best = storage.get('squared.best', 0);
 
-  let time, score, combo, landings, misses, perfects, maxCombo;
+  let time = 0, score = 0, combo = 0, landings = 0, misses = 0, perfects = 0, maxCombo = 0;
   let roundReadyAt = 0, resultT = 0, lastOutcome = null, overlayLockUntil = 0;
   let sq = null;
   let plat = { top: 200, bottom: 120, fromTop: 200, fromBottom: 120, topTarget: 200, bottomTarget: 120, anim: 1 };
@@ -299,7 +299,7 @@
 
   function updateColors() {
     const t = clock / CONFIG.paletteSeconds;
-    const i = Math.floor(t) % PALETTES.length;
+    const i = ((Math.floor(t) % PALETTES.length) + PALETTES.length) % PALETTES.length;
     const j = (i + 1) % PALETTES.length;
     // Hold each palette for a while, then blend smoothly into the next.
     const f = smooth(clamp(((t % 1) - 0.5) / 0.5, 0, 1));
@@ -332,6 +332,7 @@
     flash = Math.max(0, flash - dt * 2.5);
     shake = Math.max(0, shake - dt * 4);
 
+    if (state === 'over' && sq) sq.alpha = Math.max(0, sq.alpha - dt * 4);
     if (state === 'menu' || state === 'over') return;
 
     time -= dt;
@@ -542,7 +543,7 @@
 
   let last = performance.now();
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); // clamp so tab switches don't jump
+    const dt = clamp((now - last) / 1000, 0, 0.05); // the first rAF timestamp can predate `last`; cap so tab switches don't jump
     last = now;
     update(dt);
     render();
