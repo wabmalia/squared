@@ -21,7 +21,7 @@
       y: 640 / 3,           // center of the square, 1/3 from the top
       startSize: 16,
       maxSize: 330,         // pulses back down after reaching this
-      growSpeed: 150,       // units per second at x1
+      growSpeed: 187.5,     // units per second at x1
       growBoostPerMult: 0.08, // +8% growth speed per multiplier step
     },
 
@@ -256,8 +256,26 @@
       if (!armed) return;
       startGame();
     }
+    // Pressing during the drop or the pause after it skips straight to the
+    // next round, so fast players aren't held back by the animation.
+    if (state === 'falling') settle();
+    if (state === 'result') nextRound();
     if (state !== 'ready') return;
     state = 'growing';
+  }
+
+  // Ends the drop now. The outcome only depends on the size, so it's the same
+  // as letting the square fall.
+  function settle() {
+    const half = sq.size / 2;
+    if (sq.size > plat.topTarget) { sq.y = PL.topY - half; resolve('big'); }
+    else if (sq.size > plat.bottomTarget) { sq.y = PL.bottomY - half; resolve('land'); }
+    else resolve('small');
+  }
+
+  function nextRound() {
+    if (lastOutcome === 'land') rollPlatforms();
+    newSquare();
   }
 
   function release() {
@@ -374,10 +392,7 @@
       case 'result':
         resultT -= dt;
         if (resultT < CONFIG.resultPause * 0.5) sq.alpha = Math.max(0, resultT / (CONFIG.resultPause * 0.5));
-        if (resultT <= 0) {
-          if (lastOutcome === 'land') rollPlatforms();
-          newSquare();
-        }
+        if (resultT <= 0) nextRound();
         break;
     }
   }
