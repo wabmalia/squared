@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <clipPath id="tile"><rect width="64" height="64" rx="14"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="64" height="64" fill="#f3ede2"/>
+    <!-- the stepped well: walls with the wide gap, ledges with the narrow shaft -->
+    <path fill="#c79f7c" d="M0 64V37h12v13h12v14zM64 64V37H52v13H40v14z"/>
+    <!-- the square, about to drop in: narrower than the top gap, wider than the shaft -->
+    <rect x="18" y="5" width="28" height="28" rx="3" fill="#2b2d42"/>
+  </g>
+</svg>
