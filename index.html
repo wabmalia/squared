@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#f3ede2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Squared</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="menu" class="overlay">
+    <div class="card">
+      <h1>squared</h1>
+      <p class="sub">Hold to grow. Release to drop.<br>Slip through the top gap, land on the bottom one.</p>
+      <p class="best">Best <span id="menu-best">0</span></p>
+      <button id="play" type="button">Play</button>
+      <p class="keys">or press space</p>
+    </div>
+  </div>
+
+  <div id="over" class="overlay hidden">
+    <div class="card">
+      <p class="label">Time's up</p>
+      <p class="score" id="over-score">0</p>
+      <p class="newbest hidden" id="over-newbest">New best!</p>
+      <p class="stats" id="over-stats"></p>
+      <p class="best">Best <span id="over-best">0</span></p>
+      <button id="again" type="button">Play again</button>
+      <p class="keys">or press space</p>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
