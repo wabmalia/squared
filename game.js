@@ -21,10 +21,11 @@
       y: 640 / 3,           // center of the square, 1/3 from the top
       startSize: 16,
       maxSize: 330,         // pulses back down after reaching this
-      // Growth is proportional: the size is multiplied by e^growRate every
-      // second, so it starts slow and speeds up as it gets bigger. 3.22 takes
-      // ~0.45s to reach a 70 gap and ~0.9s to reach a 290 gap.
-      growRate: 3.22,
+      // Growth speed (units/s) = growBase + growRate * size, so the square
+      // speeds up as it gets bigger (~170 u/s at the start, ~565 u/s at a 290
+      // gap). Takes ~0.26s to reach a 70 gap and ~0.84s to reach a 290 gap.
+      growBase: 145,
+      growRate: 1.45,
       growBoostPerMult: 0.08, // +8% growth rate per multiplier step
     },
 
@@ -61,6 +62,11 @@
   const H = CONFIG.world.h;
   const SQ = CONFIG.square;
   const PL = CONFIG.platforms;
+  // With speed = growBase + growRate * size, (size + GROW_OFFSET) grows
+  // exponentially at growRate, which makes timing math simple.
+  const GROW_OFFSET = SQ.growBase / SQ.growRate;
+  // Size that is `seconds` of growth (at x1) smaller than `size`.
+  const sizeBefore = (size, seconds) => (size + GROW_OFFSET) * Math.exp(-seconds * SQ.growRate) - GROW_OFFSET;
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -160,8 +166,9 @@
   }
 
   function rollPlatforms(level = difficulty()) {
-    const ratio = Math.exp(lerp(PL.startWindow, PL.endWindow, level) * SQ.growRate);
-    const lo = Math.max(PL.minTopGap, PL.minBottomGap * ratio);
+    const window = lerp(PL.startWindow, PL.endWindow, level);
+    // smallest top gap whose bottom gap still respects minBottomGap
+    const lo = Math.max(PL.minTopGap, sizeBefore(PL.minBottomGap, -window));
     let top, tries = 0;
     do {
       top = rand(lo, PL.maxTopGap);
@@ -169,7 +176,7 @@
     plat.fromTop = plat.top;
     plat.fromBottom = plat.bottom;
     plat.topTarget = top;
-    plat.bottomTarget = top / ratio;
+    plat.bottomTarget = sizeBefore(top, window);
     plat.anim = 0;
   }
 
@@ -229,7 +236,7 @@
       combo++; // combo is still > 0 only if this square was pressed within the window
       maxCombo = Math.max(maxCombo, combo);
       const mult = combo;
-      const perfect = sq.size >= plat.topTarget * Math.exp(-CONFIG.perfectWindow * SQ.growRate);
+      const perfect = sq.size >= sizeBefore(plat.topTarget, CONFIG.perfectWindow);
       const pts = (perfect ? CONFIG.points.perfect : CONFIG.points.land) * mult;
       score += pts;
       const y = sq.y - sq.size / 2 - 18;
@@ -359,15 +366,14 @@
 
       case 'growing': {
         const rate = SQ.growRate * (1 + SQ.growBoostPerMult * (multiplier() - 1));
-        sq.size *= Math.exp(sq.dir * rate * dt);
-        // Bounce off the limits (mirrored in log space, matching the growth).
-        if (sq.size >= SQ.maxSize) {
-          sq.size = SQ.maxSize * SQ.maxSize / sq.size;
-          sq.dir = -1;
-        } else if (sq.size <= SQ.startSize) {
-          sq.size = SQ.startSize * SQ.startSize / sq.size;
-          sq.dir = 1;
-        }
+        // Grow in "offset" space, where growth is exponential, and bounce off
+        // the limits there so the pulse runs at the same speed both ways.
+        let u = (sq.size + GROW_OFFSET) * Math.exp(sq.dir * rate * dt);
+        const uMax = SQ.maxSize + GROW_OFFSET;
+        const uMin = SQ.startSize + GROW_OFFSET;
+        if (u >= uMax) { u = uMax * uMax / u; sq.dir = -1; }
+        else if (u <= uMin) { u = uMin * uMin / u; sq.dir = 1; }
+        sq.size = u - GROW_OFFSET;
         break;
       }
 
