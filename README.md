@@ -10,8 +10,8 @@ Plain HTML/CSS/JS, no build step. Open `index.html` in a browser to play.
 
 - Land: 10 points. Perfect: 50 points.
 - Miss (too big or too small): -5s, chain resets.
-- Start pressing within `comboWindow` seconds of a new square appearing to keep
-  the chain. Each chained landing raises the multiplier (x2, x3, ...), which
+- Start pressing within `comboWindow` seconds of a landing to keep the chain
+  (pressing during the pause after a landing skips straight to the next square). Each chained landing raises the multiplier (x2, x3, ...), which
   multiplies points, adds `multiplier / 2` seconds and makes the square grow a
   bit faster.
 - Daily mode uses the UTC date as the seed, so everyone gets the same platform
