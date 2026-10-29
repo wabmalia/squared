@@ -47,16 +47,17 @@
 
     gravity: 3000,
     resultPause: 0.45,
-    paletteSeconds: 18,     // seconds per color scheme before blending into the next
   };
 
-  const PALETTES = [
-    { bg: '#f3ede2', bg2: '#e6d9c3', square: '#2b2d42', platform: '#c79f7c', accent: '#e07a5f', fg: '#2b2d42' },
-    { bg: '#e7efe5', bg2: '#d1e0cd', square: '#264653', platform: '#86a993', accent: '#e76f51', fg: '#264653' },
-    { bg: '#e3eef2', bg2: '#cadde6', square: '#1d3557', platform: '#7ca3b5', accent: '#e63946', fg: '#1d3557' },
-    { bg: '#ece6f3', bg2: '#d9cdea', square: '#3d348b', platform: '#a497c8', accent: '#f18701', fg: '#3d348b' },
-    { bg: '#fbe9e1', bg2: '#f2d2c3', square: '#5c3c4f', platform: '#d49c8b', accent: '#2a9d8f', fg: '#5c3c4f' },
-  ].map(p => Object.fromEntries(Object.entries(p).map(([k, v]) => [k, hexToRgb(v)])));
+  // turn7's tones (its src/app.css), so the games look like one family: navy
+  // background, gold square. Platforms are a soft navy with a gold top edge,
+  // so a landing still reads as one shape. glow1/glow2 are the drifting
+  // background blobs.
+  const COLORS = Object.fromEntries(Object.entries({
+    bg: '#1d2140', bg2: '#12152a', glow1: '#3b6cf6', glow2: '#272c52',
+    square: '#f2b134', shadow: '#000000', platform: '#353b66', accent: '#e2553f', fg: '#eef0fa',
+    muted: '#c0c4dc', // secondary text, ~9:1 on bg (WCAG AA)
+  }).map(([k, v]) => [k, hexToRgb(v)]));
 
   const W = CONFIG.world.w;
   const H = CONFIG.world.h;
@@ -70,8 +71,6 @@
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const root = document.documentElement;
-  const themeMeta = document.querySelector('meta[name="theme-color"]');
 
   const FONT = 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif';
   const TOUCH = window.matchMedia && window.matchMedia('(hover: none)').matches;
@@ -85,9 +84,7 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const easeOut = t => 1 - Math.pow(1 - t, 3);
-  const smooth = t => t * t * (3 - 2 * t);
   const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
-  const mixRgb = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
   // Seeded random numbers, so a seed (the date, in daily mode) always gives the
   // same sequence of platforms.
   function seededRandom(seed) {
@@ -170,7 +167,7 @@
   // --- game state ------------------------------------------------------------
 
   let state = 'menu'; // menu | ready | growing | falling | result | over
-  let clock = 0;      // seconds since page load, drives colors and animations
+  let clock = 0;      // seconds since page load, drives animations
   let mode = storage.get('squared.mode', 'daily') === 'random' ? 'random' : 'daily';
   let runDay = today(); // the day the current/next daily run belongs to
   const bestKey = () => (mode === 'daily' ? `squared.daily.${runDay}` : 'squared.best');
@@ -183,7 +180,7 @@
   let plat = { top: 200, bottom: 120, fromTop: 200, fromBottom: 120, topTarget: 200, bottomTarget: 120, anim: 1 };
   let popups = [];
   let flash = 0, shake = 0;
-  let colors = PALETTES[0];
+  const colors = COLORS;
 
   function difficulty() {
     return clamp(landings / PL.rampLandings, 0, 1);
@@ -370,28 +367,9 @@
 
   // --- update ----------------------------------------------------------------
 
-  function updateColors() {
-    const t = clock / CONFIG.paletteSeconds;
-    const i = ((Math.floor(t) % PALETTES.length) + PALETTES.length) % PALETTES.length;
-    const j = (i + 1) % PALETTES.length;
-    // Hold each palette for a while, then blend smoothly into the next.
-    const f = smooth(clamp(((t % 1) - 0.5) / 0.5, 0, 1));
-    const a = PALETTES[i], b = PALETTES[j];
-    colors = {};
-    for (const k in a) colors[k] = mixRgb(a[k], b[k], f);
-  }
-
-  let cssTick = 0;
-  function syncCss() {
-    if (++cssTick % 15 !== 0) return;
-    root.style.setProperty('--bg', rgb(colors.bg));
-    themeMeta.setAttribute('content', rgb(colors.bg));
-  }
 
   function update(dt) {
     clock += dt;
-    updateColors();
-    syncCss();
 
     if (plat.anim < 1) plat.anim = Math.min(1, plat.anim + dt / PL.animTime);
     const e = easeOut(plat.anim);
@@ -478,8 +456,8 @@
 
     // Two soft drifting blobs for depth.
     const blobs = [
-      { x: 0.25 + 0.1 * Math.sin(clock * 0.13), y: 0.2 + 0.08 * Math.cos(clock * 0.11), r: 0.6, c: colors.accent, a: 0.10 },
-      { x: 0.8 + 0.1 * Math.cos(clock * 0.09), y: 0.75 + 0.08 * Math.sin(clock * 0.12), r: 0.7, c: colors.platform, a: 0.16 },
+      { x: 0.25 + 0.1 * Math.sin(clock * 0.13), y: 0.2 + 0.08 * Math.cos(clock * 0.11), r: 0.6, c: colors.glow1, a: 0.14 },
+      { x: 0.8 + 0.1 * Math.cos(clock * 0.09), y: 0.75 + 0.08 * Math.sin(clock * 0.12), r: 0.7, c: colors.glow2, a: 0.5 },
     ];
     const big = Math.max(cw, ch);
     for (const b of blobs) {
@@ -508,7 +486,7 @@
   // a ledge at bottomY inside the wide gap (the "bottom platform"), leaving the
   // narrow hole as a shaft. It runs to the screen edges and the bottom of the
   // screen; only the centered gaps matter for play.
-  function drawSide(edge, wall, ledge, floor, r) {
+  function sidePath(edge, wall, ledge, floor, r) {
     const d = Math.sign(edge - wall); // +1 on the right side, -1 on the left
     ctx.beginPath();
     ctx.moveTo(edge, floor);
@@ -520,7 +498,48 @@
     ctx.arcTo(ledge, PL.bottomY, ledge, PL.bottomY + r, r);
     ctx.lineTo(ledge, floor);
     ctx.closePath();
-    ctx.fill();
+  }
+
+  // Gold drips hanging from the rim: distance from the gap edge, width, length.
+  const DRIPS = {
+    top: [[5, 6, 22], [16, 4, 10], [29, 5, 16], [50, 4, 7]],
+    ledge: [[4, 5, 32], [13, 4, 17]],
+  };
+
+  // Gold along the route the square takes (top, inner wall, landing ledge),
+  // with drips running down near the gap. Clipped to the platform by the caller.
+  function drawGilding(edge, wall, ledge, r, d) {
+    const gold = rgb(colors.square);
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 5; // half of it is clipped away, leaving a 2.5 rim
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(edge, PL.topY);
+    ctx.lineTo(wall + d * r, PL.topY);
+    ctx.arcTo(wall, PL.topY, wall, PL.topY + r, r);
+    ctx.lineTo(wall, PL.bottomY);
+    ctx.lineTo(ledge + d * r, PL.bottomY);
+    ctx.arcTo(ledge, PL.bottomY, ledge, PL.bottomY + r, r);
+    ctx.lineTo(ledge, PL.bottomY + 14);
+    ctx.stroke();
+
+    ctx.fillStyle = gold;
+    const drip = (x, y, w, len, k) => {
+      const l = len * (1 + 0.08 * Math.sin(clock * 1.3 + k)); // slow ooze
+      const bulb = (w / 2) * 1.15;
+      ctx.beginPath();
+      ctx.moveTo(x - w / 2, y);
+      ctx.lineTo(x - w / 2 * 0.8, y + l);
+      ctx.arc(x, y + l, bulb, Math.PI, 0, true);
+      ctx.lineTo(x + w / 2, y);
+      ctx.closePath();
+      ctx.fill();
+    };
+    DRIPS.top.forEach(([at, w, len], i) => drip(wall + d * (at + w / 2), PL.topY, w, len, i + d));
+    const room = Math.abs(wall - ledge);
+    DRIPS.ledge.forEach(([at, w, len], i) => {
+      if (at + w < room - r) drip(ledge + d * (at + w / 2), PL.bottomY, w, len, i * 2 + d);
+    });
   }
 
   function drawPlatforms() {
@@ -532,17 +551,16 @@
     const bottom = Math.min(plat.bottom, plat.top) / 2;
     const r = Math.min(6, (top - bottom) / 2);
 
-    ctx.fillStyle = rgb(colors.platform);
-    drawSide(left, cx - top, cx - bottom, floor, r);
-    drawSide(right, cx + top, cx + bottom, floor, r);
-
-    // light catching the top edges
-    ctx.fillStyle = rgb([255, 255, 255], 0.2);
-    ctx.fillRect(left, PL.topY, cx - top - left - r, 2);
-    ctx.fillRect(cx + top + r, PL.topY, right - cx - top - r, 2);
-    if (top - bottom > 2 * r) {
-      ctx.fillRect(cx - top, PL.bottomY, top - bottom - r, 2);
-      ctx.fillRect(cx + bottom + r, PL.bottomY, top - bottom - r, 2);
+    for (const [edge, d] of [[left, -1], [right, 1]]) {
+      const wall = cx + d * top;
+      const ledge = cx + d * bottom;
+      ctx.save();
+      sidePath(edge, wall, ledge, floor, r);
+      ctx.fillStyle = rgb(colors.platform);
+      ctx.fill();
+      ctx.clip();
+      drawGilding(edge, wall, ledge, r, d);
+      ctx.restore();
     }
   }
 
@@ -556,7 +574,7 @@
     const bottom = sq.y + s / 2;
     ctx.save();
     ctx.globalAlpha = sq.alpha * easeOut(sq.appear); // new squares fade in
-    ctx.shadowColor = rgb(colors.square, 0.25);
+    ctx.shadowColor = rgb(colors.shadow, 0.25);
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 6;
     ctx.fillStyle = rgb(colors.square);
@@ -583,8 +601,8 @@
     ctx.fill();
     ctx.textBaseline = 'middle';
     text(mode === 'daily' ? `daily · ${prettyDay(runDay)}` : 'daily', x0 + half / 2, y + h / 2 + 1, 13,
-      mode === 'daily' ? colors.bg : colors.fg, mode === 'daily' ? 1 : 0.6, 700);
-    text('random', x0 + half * 1.5, y + h / 2 + 1, 13, mode === 'random' ? colors.bg : colors.fg, mode === 'random' ? 1 : 0.6, 700);
+      mode === 'daily' ? colors.bg : colors.muted, 1, 700);
+    text('random', x0 + half * 1.5, y + h / 2 + 1, 13, mode === 'random' ? colors.bg : colors.muted, 1, 700);
     ctx.textBaseline = 'alphabetic';
   }
 
@@ -615,15 +633,16 @@
     const bestLabel = mode === 'daily' ? `today's best ${best}` : `best ${best}`;
     if (state === 'menu') {
       text('squared', cx, 70, 40, colors.fg);
-      if (best > 0) text(bestLabel, cx, 96, 16, colors.fg, 0.6, 700);
+      if (best > 0) text(bestLabel, cx, 96, 16, colors.muted, 1, 700);
     } else {
-      if (mode === 'daily' && state !== 'over') text(`daily · ${prettyDay(runDay)}`, cx, 30, 12, colors.fg, 0.45, 700);
+      if (mode === 'daily' && state !== 'over') text(`daily · ${prettyDay(runDay)}`, cx, 30, 12, colors.muted, 1, 700);
       text(String(score), cx, 70, 44, colors.fg);
       if (state === 'over') {
-        if (newBest) text(mode === 'daily' ? "new best today!" : 'new best!', cx, 96, 16, colors.accent, 1, 700);
-        else text(bestLabel, cx, 96, 16, colors.fg, 0.6, 700);
+        // Gold, not accent: the red is under AA contrast at this size.
+        if (newBest) text(mode === 'daily' ? "new best today!" : 'new best!', cx, 96, 16, colors.square, 1, 700);
+        else text(bestLabel, cx, 96, 16, colors.muted, 1, 700);
         text(`${landings} squares · ${perfects} perfect · best chain x${Math.max(1, maxCombo)}`,
-          cx, 118, 13, colors.fg, 0.5, 600);
+          cx, 118, 13, colors.muted, 1, 600);
       } else if (combo >= 2) {
         text(`x${combo}`, cx, 98, 22, colors.accent);
       }
@@ -648,7 +667,9 @@
     } else if (state === 'over' && armed) {
       hint = TOUCH ? 'hold to play again' : 'hold space to play again';
     }
-    if (hint) text(hint, cx, SQ.y + 60, 15, colors.fg, 0.55 + 0.25 * Math.sin(clock * 4), 600);
+    // Pulses between muted and full text colour, so it never drops below AA contrast.
+    const glow = 0.5 + 0.5 * Math.sin(clock * 4);
+    if (hint) text(hint, cx, SQ.y + 60, 15, colors.muted.map((v, i) => lerp(v, colors.fg[i], glow)), 1, 600);
 
     for (const p of popups) {
       const k = p.t / p.life;
