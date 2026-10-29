@@ -47,6 +47,22 @@
 
     gravity: 3000,
     resultPause: 0.45,
+
+    // After surviving a while the square starts tilting back and forth around
+    // its centre, and every few seconds it sways faster and wider. It rights
+    // itself on release, so landing is still judged on size alone.
+    sway: {
+      startAfter: 15,       // seconds of play before the sway starts
+      stepEvery: 5,         // seconds between each step up
+      startAngle: 4,        // degrees either side at the first step
+      angleStep: 2,         // extra degrees per step
+      maxAngle: 20,
+      startSpeed: 0.5,      // full swings per second at the first step
+      speedStep: 0.12,      // extra swings per second per step
+      maxSpeed: 1.4,
+      ease: 2,              // how quickly angle and speed glide to each new step
+      straighten: 0.15,     // seconds to stand upright after release
+    },
   };
 
   // turn7's tones (its src/app.css), so the games look like one family: navy
@@ -180,6 +196,8 @@
   let plat = { top: 200, bottom: 120, fromTop: 200, fromBottom: 120, topTarget: 200, bottomTarget: 120, anim: 1 };
   let popups = [];
   let flash = 0, shake = 0;
+  let elapsed = 0; // seconds since this game started, drives the sway
+  let sway = { phase: 0, amp: 0, speed: 0 };
   const colors = COLORS;
 
   function difficulty() {
@@ -220,7 +238,7 @@
   }
 
   function makeSquare() {
-    return { size: SQ.startSize, y: SQ.y, vy: 0, dir: 1, alpha: 1, appear: 0, squash: 0 };
+    return { size: SQ.startSize, y: SQ.y, vy: 0, dir: 1, alpha: 1, appear: 0, squash: 0, tilt: 0 };
   }
 
   function newSquare() {
@@ -241,6 +259,8 @@
     maxCombo = 0;
     popups = [];
     newBest = false;
+    elapsed = 0;
+    sway = { phase: 0, amp: 0, speed: 0 };
     state = 'ready';
   }
 
@@ -368,6 +388,25 @@
   // --- update ----------------------------------------------------------------
 
 
+  function updateSway(dt) {
+    const S = CONFIG.sway;
+    const steps = elapsed < S.startAfter ? 0 : Math.floor((elapsed - S.startAfter) / S.stepEvery) + 1;
+    const ampTarget = steps ? Math.min(S.maxAngle, S.startAngle + S.angleStep * (steps - 1)) : 0;
+    const speedTarget = steps ? Math.min(S.maxSpeed, S.startSpeed + S.speedStep * (steps - 1)) : 0;
+    // Glide to each new step instead of jumping, and advance the phase rather
+    // than using sin(time * speed), so a speed change never makes it snap.
+    const k = 1 - Math.exp(-S.ease * dt);
+    sway.amp += (ampTarget - sway.amp) * k;
+    sway.speed += (speedTarget - sway.speed) * k;
+    sway.phase += 2 * Math.PI * sway.speed * dt;
+    if (!sq) return;
+    if (state === 'ready' || state === 'growing') {
+      sq.tilt = (sway.amp * Math.PI / 180) * Math.sin(sway.phase);
+    } else {
+      sq.tilt *= Math.exp(-dt * 3 / S.straighten); // ~95% upright after `straighten` seconds
+    }
+  }
+
   function update(dt) {
     clock += dt;
 
@@ -394,6 +433,9 @@
       }
     }
     if (state === 'menu' || state === 'over') return;
+
+    elapsed += dt;
+    updateSway(dt);
 
     time -= dt;
     if (time <= 0) {
@@ -578,7 +620,10 @@
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 6;
     ctx.fillStyle = rgb(colors.square);
-    roundRect(W / 2 - w / 2, bottom - h, w, h, Math.min(4, s * 0.15));
+    // Sway tilts around the centre; the square never moves sideways.
+    ctx.translate(W / 2, bottom - h / 2);
+    ctx.rotate(sq.tilt);
+    roundRect(-w / 2, -h / 2, w, h, Math.min(4, s * 0.15));
     ctx.fill();
     ctx.restore();
   }

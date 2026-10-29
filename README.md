@@ -18,6 +18,9 @@ Plain HTML/CSS/JS, no build step. Open `index.html` in a browser to play.
   sequence that day (best score kept per day). Random mode reseeds every game.
 - New platforms are rolled after every landing. The gap between the top and
   bottom holes narrows as you land more squares.
+- After 15 seconds of play the square starts swaying (tilting around its
+  centre), and every 5 seconds it sways faster and wider. It straightens out
+  when dropped, so landing is still judged on size alone.
 
 ## Tuning
 
