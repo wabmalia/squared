@@ -1,6 +1,10 @@
 (() => {
   'use strict';
 
+  // No zooming on a double tap: the viewport and touch-action ask for that,
+  // but some phone browsers still zoom on the double click a double tap makes.
+  document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+
   // ---------------------------------------------------------------------------
   // Tuning. Everything is in "world units": the game is laid out on a fixed
   // 360x640 board that gets scaled to fit the screen, so every device has the
