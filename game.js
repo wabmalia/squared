@@ -90,6 +90,7 @@
   const sizeBefore = (size, seconds) => (size + GROW_OFFSET) * Math.exp(-seconds * SQ.growRate) - GROW_OFFSET;
 
   const canvas = document.getElementById('game');
+  const arcadeBack = document.getElementById('arcade-back');
   const ctx = canvas.getContext('2d');
 
   const FONT = 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif';
@@ -729,6 +730,9 @@
   }
 
   function render() {
+    // The way back to the arcade, only between games so a press can't hit it mid-play.
+    const showBack = state === 'menu' || state === 'over';
+    if (arcadeBack.hidden === showBack) arcadeBack.hidden = !showBack;
     drawBackground();
     toWorld();
     drawPlatforms();

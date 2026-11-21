@@ -22,3 +22,24 @@ canvas {
   display: block;
   touch-action: none;
 }
+
+/* Back out to the arcade (arcade.wabmalia.eu), top left under the timer bar.
+   Looks like the daily/random toggle. */
+.arcade-back {
+  position: fixed;
+  top: max(20px, calc(env(safe-area-inset-top) + 10px));
+  left: max(14px, env(safe-area-inset-left));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: rgb(238 240 250 / 0.08);
+  color: #c0c4dc;
+  font: 700 13px ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  text-decoration: none;
+  touch-action: manipulation;
+}
+.arcade-back:hover { color: #eef0fa; background: rgb(238 240 250 / 0.14); }
+.arcade-back[hidden] { display: none; }
+.arcade-icon { width: 20px; height: 20px; flex: none; }
