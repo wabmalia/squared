@@ -91,7 +91,8 @@
 
   const canvas = document.getElementById('game');
   const arcadeBack = document.getElementById('arcade-back');
-  const ctx = canvas.getContext('2d');
+  // Opaque: the backdrop covers every pixel, so nothing shows through.
+  const ctx = canvas.getContext('2d', { alpha: false });
 
   const FONT = 'ui-rounded, "SF Pro Rounded", system-ui, sans-serif';
   const TOUCH = window.matchMedia && window.matchMedia('(hover: none)').matches;
@@ -156,7 +157,10 @@
   let dpr = 1, cw = 0, ch = 0, scale = 1, offX = 0, offY = 0;
 
   function resize() {
-    dpr = Math.min(window.devicePixelRatio || 1, 3);
+    // At most 2 device pixels per CSS pixel: flat shapes look no sharper at
+    // 3, and every pixel drawn costs on low-end phones.
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    background = null; // drawn again at the new size
     cw = window.innerWidth;
     ch = window.innerHeight;
     canvas.width = Math.round(cw * dpr);
@@ -167,6 +171,7 @@
     offX = (cw - W * scale) / 2;
     offY = (ch - H * scale) / 2;
   }
+  let background = null; // the backdrop, drawn once per size (see drawBackground)
   window.addEventListener('resize', resize);
   resize();
 
@@ -182,7 +187,7 @@
       img.data[i + 3] = 16;
     }
     g.putImageData(img, 0, 0);
-    return ctx.createPattern(c, 'repeat');
+    return c;
   })();
 
   // --- game state ------------------------------------------------------------
@@ -493,33 +498,48 @@
 
   // --- render ----------------------------------------------------------------
 
-  function drawBackground() {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const g = ctx.createLinearGradient(0, 0, 0, ch);
+  // The backdrop (gradient, two soft blobs for depth, grain) is drawn once
+  // into its own canvas and copied each frame: one plain copy instead of
+  // four see-through full-screen layers. Those cost low-end phones most of
+  // their frame (measured in Chrome drawing without a GPU, CPU throttled
+  // 6x: 4 fps before, 60 after). The blobs used to drift, too slowly to
+  // notice. The grain used to cover the platforms and square too; filling
+  // them with a grained pattern instead cost as much as the layer did.
+  function paintBackground() {
+    const c = document.createElement('canvas');
+    c.width = canvas.width;
+    c.height = canvas.height;
+    const b = c.getContext('2d', { alpha: false });
+    b.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = b.createLinearGradient(0, 0, 0, ch);
     g.addColorStop(0, rgb(colors.bg));
     g.addColorStop(1, rgb(colors.bg2));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, cw, ch);
+    b.fillStyle = g;
+    b.fillRect(0, 0, cw, ch);
 
-    // Two soft drifting blobs for depth.
     const blobs = [
-      { x: 0.25 + 0.1 * Math.sin(clock * 0.13), y: 0.2 + 0.08 * Math.cos(clock * 0.11), r: 0.6, c: colors.glow1, a: 0.14 },
-      { x: 0.8 + 0.1 * Math.cos(clock * 0.09), y: 0.75 + 0.08 * Math.sin(clock * 0.12), r: 0.7, c: colors.glow2, a: 0.5 },
+      { x: 0.25, y: 0.2, r: 0.6, c: colors.glow1, a: 0.14 },
+      { x: 0.8, y: 0.75, r: 0.7, c: colors.glow2, a: 0.5 },
     ];
     const big = Math.max(cw, ch);
-    for (const b of blobs) {
-      const rg = ctx.createRadialGradient(b.x * cw, b.y * ch, 0, b.x * cw, b.y * ch, b.r * big);
-      rg.addColorStop(0, rgb(b.c, b.a));
-      rg.addColorStop(1, rgb(b.c, 0));
-      ctx.fillStyle = rg;
-      ctx.fillRect(0, 0, cw, ch);
+    for (const o of blobs) {
+      const rg = b.createRadialGradient(o.x * cw, o.y * ch, 0, o.x * cw, o.y * ch, o.r * big);
+      rg.addColorStop(0, rgb(o.c, o.a));
+      rg.addColorStop(1, rgb(o.c, 0));
+      b.fillStyle = rg;
+      b.fillRect(0, 0, cw, ch);
     }
+
+    b.setTransform(1, 0, 0, 1, 0, 0);
+    b.fillStyle = b.createPattern(grain, 'repeat');
+    b.fillRect(0, 0, c.width, c.height);
+    return c;
   }
 
-  function drawGrain() {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = grain;
-    ctx.fillRect(0, 0, cw, ch);
+  function drawBackground() {
+    if (!background) background = paintBackground();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(background, 0, 0);
   }
 
   function toWorld() {
@@ -624,10 +644,10 @@
     ctx.shadowColor = rgb(colors.shadow, 0.25);
     ctx.shadowBlur = 14;
     ctx.shadowOffsetY = 6;
-    ctx.fillStyle = rgb(colors.square);
     // Sway tilts around the centre; the square never moves sideways.
     ctx.translate(W / 2, bottom - h / 2);
     ctx.rotate(sq.tilt);
+    ctx.fillStyle = rgb(colors.square);
     roundRect(-w / 2, -h / 2, w, h, Math.min(4, s * 0.15));
     ctx.fill();
     ctx.restore();
@@ -743,17 +763,26 @@
       ctx.fillRect(0, 0, cw, ch);
     }
     drawHud();
-    drawGrain();
   }
 
   // --- loop ------------------------------------------------------------------
 
+  // Drawn about 60 times a second on a 120 Hz screen (every other frame):
+  // twice the frames is twice the work for a phone. The game itself still
+  // steps every frame. The slack keeps 60 and 90 Hz screens drawing every
+  // frame; halving 90 would make it 45.
+  const DRAW_EVERY = 1 / 60;
   let last = performance.now();
+  let undrawn = DRAW_EVERY;
   function frame(now) {
     const dt = clamp((now - last) / 1000, 0, 0.05); // the first rAF timestamp can predate `last`; cap so tab switches don't jump
     last = now;
     update(dt);
-    render();
+    undrawn += dt;
+    if (undrawn >= DRAW_EVERY - 0.006) {
+      render();
+      undrawn = 0;
+    }
     requestAnimationFrame(frame);
   }
 
