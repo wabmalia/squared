@@ -155,6 +155,15 @@
   // --- layout ----------------------------------------------------------------
 
   let dpr = 1, cw = 0, ch = 0, scale = 1, offX = 0, offY = 0;
+  // Space the notch or Dynamic Island takes at the top, when the page draws
+  // under it (an installed app; in the browser it's 0). A probe element as
+  // tall as env(safe-area-inset-top) turns it into pixels; the inset can
+  // arrive after the page loads, without a resize event, so it's watched.
+  let safeTop = 0;
+  const safeProbe = document.createElement('div');
+  safeProbe.style.cssText = 'position:fixed;top:0;width:0;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top)';
+  document.body.append(safeProbe);
+  new ResizeObserver(() => { safeTop = safeProbe.offsetHeight; }).observe(safeProbe);
 
   function resize() {
     // At most 2 device pixels per CSS pixel: flat shapes look no sharper at
@@ -163,6 +172,7 @@
     background = null; // drawn again at the new size
     cw = window.innerWidth;
     ch = window.innerHeight;
+    safeTop = safeProbe.offsetHeight;
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
     canvas.style.width = cw + 'px';
@@ -678,7 +688,8 @@
 
   function drawHud() {
     // Timer bar across the top of the screen. Full before the first game.
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Just below the notch, if there is one.
+    ctx.setTransform(dpr, 0, 0, dpr, 0, dpr * safeTop);
     const shown = state === 'menu' ? CONFIG.startTime : time;
     const barH = Math.max(6, 8 * scale);
     const frac = clamp(shown / CONFIG.startTime, 0, 1);

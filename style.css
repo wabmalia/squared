@@ -27,7 +27,7 @@ canvas {
    Looks like the daily/random toggle. */
 .arcade-back {
   position: fixed;
-  top: max(20px, calc(env(safe-area-inset-top) + 10px));
+  top: calc(env(safe-area-inset-top) + 20px);
   left: max(14px, env(safe-area-inset-left));
   display: inline-flex;
   align-items: center;
