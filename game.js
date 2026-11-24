@@ -641,6 +641,11 @@
     }
   }
 
+  // The square's shadow: [how far each layer reaches past the square, its
+  // opacity], outermost first, and how far below the square it sits.
+  const SHADOW_LAYERS = [[9, 0.035], [6, 0.05], [3.5, 0.07], [1.5, 0.09]];
+  const SHADOW_DROP = 6;
+
   function drawSquare() {
     if (!sq) return;
     const s = sq.size; // always the real size, so growth on screen is exactly the speed curve
@@ -649,16 +654,22 @@
     const w = s * sx;
     const h = s * sy;
     const bottom = sq.y + s / 2;
+    const r = Math.min(4, s * 0.15);
     ctx.save();
     ctx.globalAlpha = sq.alpha * easeOut(sq.appear); // new squares fade in
-    ctx.shadowColor = rgb(colors.shadow, 0.25);
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetY = 6;
     // Sway tilts around the centre; the square never moves sideways.
     ctx.translate(W / 2, bottom - h / 2);
     ctx.rotate(sq.tilt);
+    // A soft shadow below it, as a few faint, growing layers. Not the
+    // canvas shadowBlur: Android's WebView draws that with a white line
+    // across the whole screen while the square changes size.
+    for (const [grow, alpha] of SHADOW_LAYERS) {
+      ctx.fillStyle = rgb(colors.shadow, alpha);
+      roundRect(-w / 2 - grow, -h / 2 - grow + SHADOW_DROP, w + 2 * grow, h + 2 * grow, r + grow);
+      ctx.fill();
+    }
     ctx.fillStyle = rgb(colors.square);
-    roundRect(-w / 2, -h / 2, w, h, Math.min(4, s * 0.15));
+    roundRect(-w / 2, -h / 2, w, h, r);
     ctx.fill();
     ctx.restore();
   }
